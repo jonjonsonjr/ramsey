@@ -24,7 +24,7 @@
 const int threadsPerBlock = 32*32;
 const int blocksPerGrid = 32*32;
 
-__device__ const int choose_cache[][6] = {
+__constant__ int choose_cache[][6] = {
         {0, 0, 0, 0, 0, 0},
         {0, 1, 0, 0, 0, 0},
         {0, 2, 1, 0, 0, 0},
@@ -70,7 +70,8 @@ __device__ const int choose_cache[][6] = {
         {0, 0, 0, 0, 0, 850668},
         {0, 0, 0, 0, 0, 962598}};
 
-__global__ void eval(int *c, const int *adj) {
+__global__ void eval(int *c, const int *adj) 
+{
     __shared__ int cache[threadsPerBlock];
     int cacheIndex = threadIdx.x;
 	int sum = 0; // number of cliques found by this thread
@@ -138,7 +139,8 @@ __global__ void eval(int *c, const int *adj) {
 	}
 }
 
-int CudaEval(int *adj) {
+int CudaEval(int *adj)
+{
 	int           c, *partial_c;
     int           *dev_partial_c;
 	int	*dev_adj;
@@ -168,4 +170,9 @@ int CudaEval(int *adj) {
 	free(partial_c);
 	
 	return c;
+}
+
+void CudaInit()
+{
+	cudaMemcpyToSymbol("choose_cache", choose_cache, sizeof(int) * 44 * 6);
 }

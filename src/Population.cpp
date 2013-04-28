@@ -29,6 +29,7 @@ int EvalAdj(int adj[N][N]);
 int main(int argc, const char* argv[])
 {
     srand(time(NULL)); //init random seed
+	CudaInit();
 
 	std::cout << "INITIALIZING POPULATION" << std::endl;
 
