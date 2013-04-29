@@ -24,11 +24,12 @@ void InsertMember(MEMBER[], MEMBER);
 void BiasedCross(MEMBER[2], MEMBER*);
 void RandomSinglePointCross(MEMBER[2], MEMBER*);
 void Mutate(MEMBER*);
-int EvalAdj(int adj[N][N]);
+int EvalAdj(char adj[N][N]);
 
 int main(int argc, const char* argv[])
 {
-    srand(time(NULL)); //init random seed
+	unsigned int seed = time(NULL);
+    srand(seed); //init random seed
 	CudaInit();
 
 	std::cout << "INITIALIZING POPULATION" << std::endl;
@@ -67,8 +68,13 @@ int main(int argc, const char* argv[])
 
 		/* NOT GOING TO HAPPEN */
 		if (child.num_cliques < 10) {
-			std::cout << child.num_cliques << ":" << child.chromosome << std::endl;
-			std::getchar();
+			std::cout << child.num_cliques << ":" << std::endl;
+
+			for (int j = 0; j < CHROMOSOME_LENGTH; j++) {
+				std::cout << (char) (child.chromosome[j] + 0x30);
+			}
+
+			std::cout << std::endl;
 		}
 
 		InsertMember(population, child);
@@ -90,8 +96,14 @@ int main(int argc, const char* argv[])
 	std::cout << std::endl;
 	PrintPopulation(population);
 	std::cout << "Best member: " << population[0].num_cliques << std::endl;
-	std::cout << population[0].chromosome << std::endl << std::endl;
+	for (int j = 0; j < CHROMOSOME_LENGTH; j++) {
+		std::cout << (char) (population[0].chromosome[j] + 0x30);
+	}
 
+	std::cout << std::endl;
+
+	/* echo seed for posterity */
+	std::cout << "SEED: " << seed << std::endl;
     /* leave console up until keypress */
 	std::cout << "FINISHED AND WAITING FOR RETURN KEY" << std::endl;
     std::getchar();
@@ -167,22 +179,16 @@ void InsertMember(MEMBER population[], MEMBER member)
 
 void InitializeRandomMember(MEMBER *member)
 {
-    char *child_chromosome = (char*)(malloc(sizeof(char) * CHROMOSOME_LENGTH + 1));
-	char *char_bits = new char[CHROMOSOME_LENGTH];
+    char *child_chromosome = (char*)(malloc(sizeof(char) * CHROMOSOME_LENGTH));
     for (int i = 0; i < CHROMOSOME_LENGTH; i++) {
-        child_chromosome[i] = rand() % 2 + 0x30;
-		char_bits[i] = child_chromosome[i] - 0x30;
+        child_chromosome[i] = rand() % 2;
     }
 
-    child_chromosome[CHROMOSOME_LENGTH] = '\0';
-
-    int adjacency_matrix[N][N];
-    GetAdjacencyMatrixFromCharArray(char_bits, adjacency_matrix);
+	char adjacency_matrix[N][N];
+    GetAdjacencyMatrixFromCharArray(child_chromosome, adjacency_matrix);
     int num_cliques = EvalAdj(adjacency_matrix);
     member->chromosome = child_chromosome;
     member->num_cliques = num_cliques;
-
-	free(char_bits);
 }
 
 void PrintMatrix(int arr[N][N]) {
@@ -196,11 +202,7 @@ void PrintMatrix(int arr[N][N]) {
 
 void Mutate(MEMBER *member) {
 	int bit = rand() % CHROMOSOME_LENGTH;
-	if (member->chromosome[bit] == '0') {
-		member->chromosome[bit] = '1';
-	} else {
-		member->chromosome[bit] = '0';
-	}
+	member->chromosome[bit] ^= 1;
 }
 
 void BiasedCross(MEMBER parents[2], MEMBER *child)
@@ -209,8 +211,7 @@ void BiasedCross(MEMBER parents[2], MEMBER *child)
     chromosome[0] = parents[0].chromosome;
     chromosome[1] = parents[1].chromosome;
 
-    char *child_chromosome = (char*)(malloc(sizeof(char) * CHROMOSOME_LENGTH + 1));
-	char *char_bits = new char[CHROMOSOME_LENGTH];
+    char *child_chromosome = (char*)(malloc(sizeof(char) * CHROMOSOME_LENGTH));
 
 	float bias;
 	float parent_cliques[2];
@@ -234,19 +235,14 @@ void BiasedCross(MEMBER parents[2], MEMBER *child)
 		} else {
 			child_chromosome[i] = good.chromosome[i];
 		}
-		char_bits[i] = child_chromosome[i] - 0x30;
 	}
 
-	child_chromosome[CHROMOSOME_LENGTH] = '\0';
-
-	int adjacency_matrix[N][N];
-    GetAdjacencyMatrixFromCharArray(char_bits, adjacency_matrix);
+	char adjacency_matrix[N][N];
+    GetAdjacencyMatrixFromCharArray(child_chromosome, adjacency_matrix);
     int num_cliques = EvalAdj(adjacency_matrix);
 
     child->chromosome = child_chromosome;
     child->num_cliques = num_cliques;
-
-	free(char_bits);
 }
 
 void RandomSinglePointCross(MEMBER parents[2], MEMBER *child)
@@ -255,30 +251,26 @@ void RandomSinglePointCross(MEMBER parents[2], MEMBER *child)
     chromosome[0] = parents[0].chromosome;
     chromosome[1] = parents[1].chromosome;
 
-    char *child_chromosome = (char*)(malloc(sizeof(char) * CHROMOSOME_LENGTH + 1));
-	char *char_bits = new char[CHROMOSOME_LENGTH];
+    char *child_chromosome = (char*)(malloc(sizeof(char) * CHROMOSOME_LENGTH));
 
     int crossover = rand() % CHROMOSOME_LENGTH;
-    for (int i = 0; i < crossover; i++) {
+    
+	for (int i = 0; i < crossover; i++) {
         child_chromosome[i] = chromosome[0][i];
-		char_bits[i] = child_chromosome[i] - 0x30;
     }
+
     for (int i = crossover; i < CHROMOSOME_LENGTH; i++) {
         child_chromosome[i] = chromosome[1][i];
-		char_bits[i] = child_chromosome[i] - 0x30;
     }
-    child_chromosome[CHROMOSOME_LENGTH] = '\0';
 
-	int adjacency_matrix[N][N];
-    GetAdjacencyMatrixFromCharArray(char_bits, adjacency_matrix);
+	char adjacency_matrix[N][N];
+    GetAdjacencyMatrixFromCharArray(child_chromosome, adjacency_matrix);
     int num_cliques = EvalAdj(adjacency_matrix);
 
     child->chromosome = child_chromosome;
     child->num_cliques = num_cliques;
-
-	free(char_bits);
 }
 
-int EvalAdj(int adj[N][N]) {
-	return CudaEval((int *) adj);
+int EvalAdj(char adj[N][N]) {
+	return CudaEval((char *) adj);
 }

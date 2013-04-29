@@ -19,17 +19,16 @@
 #include <cuda_runtime.h>
 #include <device_launch_parameters.h>
 #include "Fitness.h"
-#define UPPER_BOUND 962598
 
 const int threadsPerBlock = 32*32;
 const int blocksPerGrid = 32*32;
 
 __device__ __constant__ int choose_cache[44][6];
-__device__ __constant__ int adj[43][43];
+__device__ __constant__ char adj[43][43];
 
 __global__ void eval(int *c) 
 {
-    __shared__ int cache[threadsPerBlock];
+    __shared__ short cache[threadsPerBlock];
     int cacheIndex = threadIdx.x;
 	int sum = 0; // number of cliques found by this thread
 	int arr[5] = { 0, 0, 0, 0, 0 };
@@ -60,19 +59,17 @@ __global__ void eval(int *c)
 		}
             
 		int result = adj[arr[0]][arr[1]] +
-					   adj[arr[0]][arr[2]] +
-					   adj[arr[0]][arr[3]] +
-					   adj[arr[0]][arr[4]] +
-					   adj[arr[1]][arr[2]] +
-					   adj[arr[1]][arr[3]] +
-					   adj[arr[1]][arr[4]] +
-					   adj[arr[2]][arr[3]] +
-					   adj[arr[2]][arr[4]] +
-					   adj[arr[3]][arr[4]];
+					 adj[arr[0]][arr[2]] +
+					 adj[arr[0]][arr[3]] +
+					 adj[arr[0]][arr[4]] +
+					 adj[arr[1]][arr[2]] +
+					 adj[arr[1]][arr[3]] +
+					 adj[arr[1]][arr[4]] +
+					 adj[arr[2]][arr[3]] +
+					 adj[arr[2]][arr[4]] +
+					 adj[arr[3]][arr[4]];
             
-		if (result == 0 || result == KC2) {
-			sum++;
-		}
+		sum += (result == 0 || result == KC2);
 
 		tid += offset; // move on to next pass
 	}
@@ -96,19 +93,17 @@ __global__ void eval(int *c)
 	}
 }
 
-int CudaEval(int *adjacency_matrix)
+int CudaEval(char *adjacency_matrix)
 {
 	int           c, *partial_c;
     int           *dev_partial_c;
-	dim3 blocks(blocksPerGrid);
-	dim3 threads(threadsPerBlock);
 
 	partial_c = (int*) malloc(blocksPerGrid * sizeof(int));
 	cudaMalloc((void**) &dev_partial_c, blocksPerGrid * sizeof(int));
 
-	cudaMemcpyToSymbol(adj, adjacency_matrix, 43 * 43 * sizeof(int));
+	cudaMemcpyToSymbol(adj, adjacency_matrix, 43 * 43 * sizeof(char));
 
-	eval<<<blocks,threads>>>(dev_partial_c);
+	eval<<<blocksPerGrid,threadsPerBlock>>>(dev_partial_c);
 
 	// copy the array 'c' back from the GPU to the CPU
 	cudaMemcpy(partial_c, dev_partial_c, blocksPerGrid * sizeof(int), cudaMemcpyDeviceToHost);

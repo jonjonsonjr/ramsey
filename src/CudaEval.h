@@ -1,2 +1,2 @@
-int CudaEval(int *adj);
+int CudaEval(char *adj);
 void CudaInit();

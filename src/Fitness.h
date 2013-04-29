@@ -6,6 +6,6 @@
 #define KC2 10
 #define UPPER_BOUND 962598
 
-void GetAdjacencyMatrixFromCharArray(char[], int[N][N]);
+void GetAdjacencyMatrixFromCharArray(char[], char[N][N]);
 
 #endif
