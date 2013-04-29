@@ -24,7 +24,111 @@
 const int threadsPerBlock = 32*32;
 const int blocksPerGrid = 32*32;
 
-__constant__ int choose_cache[][6] = {
+__device__ __constant__ int choose_cache[44][6];
+__device__ __constant__ int adj[43][43];
+
+__global__ void eval(int *c) 
+{
+    __shared__ int cache[threadsPerBlock];
+    int cacheIndex = threadIdx.x;
+	int sum = 0; // number of cliques found by this thread
+	int arr[5] = { 0, 0, 0, 0, 0 };
+
+	int tid = threadIdx.x + blockIdx.x * blockDim.x;
+	int offset = gridDim.x * blockDim.x; // our "stride" for multiple passes
+
+	while (tid < UPPER_BOUND) {
+		int a = N;
+		int b = K;
+		int x = 962597 - tid; // x is the "dual" of m
+
+		for (int i = 0; i < K; i++) {
+			int v = a - 1;
+
+			while (choose_cache[v][b] > x) {
+				v--;
+			}
+
+			arr[i] = v;
+			x = x - choose_cache[arr[i]][b];
+			a = arr[i];
+			b--;
+		}
+
+		for (int i = 0; i < K; i++) {
+			arr[i] = (N - 1) - arr[i];
+		}
+            
+		int result = adj[arr[0]][arr[1]] +
+					   adj[arr[0]][arr[2]] +
+					   adj[arr[0]][arr[3]] +
+					   adj[arr[0]][arr[4]] +
+					   adj[arr[1]][arr[2]] +
+					   adj[arr[1]][arr[3]] +
+					   adj[arr[1]][arr[4]] +
+					   adj[arr[2]][arr[3]] +
+					   adj[arr[2]][arr[4]] +
+					   adj[arr[3]][arr[4]];
+            
+		if (result == 0 || result == KC2) {
+			sum++;
+		}
+
+		tid += offset; // move on to next pass
+	}
+
+    cache[cacheIndex] = sum; // populate the cache values
+    __syncthreads(); // synchronize threads in this block
+
+    // threadsPerBlock must be a power of 2 because of the following:
+    int i = blockDim.x / 2;
+	while (i != 0) {
+		if (cacheIndex < i) {
+			cache[cacheIndex] += cache[cacheIndex + i];
+		}
+
+		__syncthreads(); // be sure every array has finished
+		i /= 2;
+	}
+
+    if (cacheIndex == 0) {
+        c[blockIdx.x] = cache[0]; //number of cliques found by this block
+	}
+}
+
+int CudaEval(int *adjacency_matrix)
+{
+	int           c, *partial_c;
+    int           *dev_partial_c;
+	dim3 blocks(blocksPerGrid);
+	dim3 threads(threadsPerBlock);
+
+	partial_c = (int*) malloc(blocksPerGrid * sizeof(int));
+	cudaMalloc((void**) &dev_partial_c, blocksPerGrid * sizeof(int));
+
+	cudaMemcpyToSymbol(adj, adjacency_matrix, 43 * 43 * sizeof(int));
+
+	eval<<<blocks,threads>>>(dev_partial_c);
+
+	// copy the array 'c' back from the GPU to the CPU
+	cudaMemcpy(partial_c, dev_partial_c, blocksPerGrid * sizeof(int), cudaMemcpyDeviceToHost);
+
+	// sum all the blocks' sums
+	c = 0;
+
+	for (int i = 0; i < blocksPerGrid; i++) {
+		c = c + partial_c[i];
+	}
+
+	cudaFree(dev_partial_c);
+	free(partial_c);
+	
+	return c;
+}
+
+void CudaInit()
+{
+	int h_choose_cache[][6] = {
         {0, 0, 0, 0, 0, 0},
         {0, 1, 0, 0, 0, 0},
         {0, 2, 1, 0, 0, 0},
@@ -70,109 +174,5 @@ __constant__ int choose_cache[][6] = {
         {0, 0, 0, 0, 0, 850668},
         {0, 0, 0, 0, 0, 962598}};
 
-__global__ void eval(int *c, const int *adj) 
-{
-    __shared__ int cache[threadsPerBlock];
-    int cacheIndex = threadIdx.x;
-	int sum = 0; // number of cliques found by this thread
-	int arr[5] = { 0, 0, 0, 0, 0 };
-
-	int tid = threadIdx.x + blockIdx.x * blockDim.x;
-	int offset = gridDim.x * blockDim.x; // our "stride" for multiple passes
-
-	while (tid < UPPER_BOUND) {
-		int a = N;
-		int b = K;
-		int x = (choose_cache[N][K] - 1) - tid; // x is the "dual" of m
-
-		for (int i = 0; i < K; i++) {
-			int v = a - 1;
-
-			while (choose_cache[v][b] > x) {
-				v--;
-			}
-
-			arr[i] = v;
-			x = x - choose_cache[arr[i]][b];
-			a = arr[i];
-			b--;
-		}
-
-		for (int i = 0; i < K; i++) {
-			arr[i] = (N - 1) - arr[i];
-		}
-            
-		int result = adj[arr[0] * 43 + arr[1]] +
-					   adj[arr[0] * 43 + arr[2]] +
-					   adj[arr[0] * 43 + arr[3]] +
-					   adj[arr[0] * 43 + arr[4]] +
-					   adj[arr[1] * 43 + arr[2]] +
-					   adj[arr[1] * 43 + arr[3]] +
-					   adj[arr[1] * 43 + arr[4]] +
-					   adj[arr[2] * 43 + arr[3]] +
-					   adj[arr[2] * 43 + arr[4]] +
-					   adj[arr[3] * 43 + arr[4]];
-            
-		if (result == 0 || result == KC2) {
-			sum++;
-		}
-
-		tid += offset; // move on to next pass
-	}
-
-    cache[cacheIndex] = sum; // populate the cache values
-    __syncthreads(); // synchronize threads in this block
-
-    // threadsPerBlock must be a power of 2 because of the following:
-    int i = blockDim.x / 2;
-	while (i != 0) {
-		if (cacheIndex < i) {
-			cache[cacheIndex] += cache[cacheIndex + i];
-		}
-
-		__syncthreads(); // be sure every array has finished
-		i /= 2;
-	}
-
-    if (cacheIndex == 0) {
-        c[blockIdx.x] = cache[0]; //number of cliques found by this block
-	}
-}
-
-int CudaEval(int *adj)
-{
-	int           c, *partial_c;
-    int           *dev_partial_c;
-	int	*dev_adj;
-	dim3 blocks(blocksPerGrid);
-	dim3 threads(threadsPerBlock);
-
-	partial_c = (int*) malloc(blocksPerGrid * sizeof(int));
-	cudaMalloc((void**) &dev_partial_c, blocksPerGrid * sizeof(int));
-	cudaMalloc((void**) &dev_adj, 43 * 43 * sizeof(int));
-
-	cudaMemcpy(dev_adj, adj, 43 * 43 * sizeof(int), cudaMemcpyHostToDevice);
-
-	eval<<<blocks,threads>>>(dev_partial_c, dev_adj);
-
-	// copy the array 'c' back from the GPU to the CPU
-	cudaMemcpy(partial_c, dev_partial_c, blocksPerGrid * sizeof(int), cudaMemcpyDeviceToHost);
-
-	// sum all the blocks' sums
-	c = 0;
-
-	for (int i = 0; i < blocksPerGrid; i++) {
-		c = c + partial_c[i];
-	}
-
-	cudaFree(dev_partial_c);
-	cudaFree(dev_adj);
-	free(partial_c);
-	
-	return c;
-}
-
-void CudaInit()
-{
-	cudaMemcpyToSymbol("choose_cache", choose_cache, sizeof(int) * 44 * 6);
+	cudaMemcpyToSymbol(choose_cache, h_choose_cache, sizeof(int) * 44 * 6);
 }
