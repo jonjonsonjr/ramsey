@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <iomanip>
 #include <stdlib.h>
 #include <time.h>
@@ -8,7 +9,7 @@
 #define POPULATION_SIZE 150
 #define POPULATION_PADDING 500
 #define CHROMOSOME_LENGTH 903
-#define CROSSES 1000000
+#define CROSSES 1200000
 
 typedef struct member_struct {
     char* chromosome;
@@ -28,85 +29,74 @@ int EvalAdj(char adj[N][N]);
 
 int main(int argc, const char* argv[])
 {
-	unsigned int seed = time(NULL);
-    srand(seed); //init random seed
 	CudaInit();
 
-	std::cout << "INITIALIZING POPULATION" << std::endl;
+	while (1) {
+		unsigned int seed = time(NULL);
+		srand(seed); //init random seed
 
-    MEMBER population[POPULATION_SIZE];
+		MEMBER population[POPULATION_SIZE];
 
-    for (int i = 0; i < POPULATION_SIZE; i++) {
-        InitializeRandomMember(&population[i]);
-    }
+		for (int i = 0; i < POPULATION_SIZE; i++) {
+			InitializeRandomMember(&population[i]);
+		}
 
-	SortInitialPopulation(population, 0, POPULATION_SIZE - 1);
-	PrintPopulation(population);
+		SortInitialPopulation(population, 0, POPULATION_SIZE - 1);
 
-	std::cout << "PADDING POPULATION" << std::endl << std::endl;
+		for (int i = 0; i < POPULATION_PADDING; i++) {
+			MEMBER member;
+			InitializeRandomMember(&member);
+			InsertMember(population, member);
+			//PrintPopulation(population);
+		}
 
-	for (int i = 0; i < POPULATION_PADDING; i++) {
-		MEMBER member;
-		InitializeRandomMember(&member);
-		InsertMember(population, member);
-		//PrintPopulation(population);
-	}
-	PrintPopulation(population);
+		/* breed children */
+		int best = 999999;
+		for (int i = 0; i < CROSSES; i++) {
+			MEMBER parents[2];
+			MEMBER child;
 
-	std::cout << "BREEDING" << std::endl << std::endl;
+			parents[0] = population[rand() % POPULATION_SIZE];
+			parents[1] = population[rand() % POPULATION_SIZE];
 
-	/* breed children */
-	int best = 999999;
-	for (int i = 0; i < CROSSES; i++) {
-		MEMBER parents[2];
-		MEMBER child;
+			BiasedCross(parents, &child);
+			InsertMember(population, child);
 
-		parents[0] = population[rand() % POPULATION_SIZE];
-		parents[1] = population[rand() % POPULATION_SIZE];
-		//RandomSinglePointCross(parents, &child);
-		BiasedCross(parents, &child);
-
-		/* NOT GOING TO HAPPEN */
-		if (child.num_cliques < 10) {
-			std::cout << child.num_cliques << ":" << std::endl;
-
-			for (int j = 0; j < CHROMOSOME_LENGTH; j++) {
-				std::cout << (char) (child.chromosome[j] + 0x30);
+			if (population[0].num_cliques < best) {
+				best = population[0].num_cliques;
+				std::cout << best << std::endl;
 			}
 
-			std::cout << std::endl;
-		}
-
-		InsertMember(population, child);
-
-		if (population[0].num_cliques < best) {
-			best = population[0].num_cliques;
-			std::cout << "Current best: " << best << std::endl;
-		}
-
-		if (population[POPULATION_SIZE - 1].num_cliques == population[0].num_cliques) {
-			std::cout << "MIGRATING" << std::endl;
-			for (int i = 5; i < POPULATION_SIZE; i++) {
-				free(population[i].chromosome);
-				InitializeRandomMember(&population[i]);
+			if (population[POPULATION_SIZE - 1].num_cliques == population[0].num_cliques) {
+				for (int i = 5; i < POPULATION_SIZE; i++) {
+					free(population[i].chromosome);
+					InitializeRandomMember(&population[i]);
+				}
 			}
 		}
+
+		std::cout << "Best member: " << population[0].num_cliques << std::endl;
+
+		std::ofstream outfile;
+
+		outfile.open("results.txt", std::ios_base::app);
+
+		outfile << std::endl;
+		outfile << "Best member: " << population[0].num_cliques << std::endl;
+		for (int j = 0; j < CHROMOSOME_LENGTH; j++) {
+			outfile << (char) (population[0].chromosome[j] + 0x30);
+		}
+
+		outfile << std::endl;
+
+		/* echo seed for posterity */
+		outfile << "SEED: " << seed << std::endl;
+		outfile.close();
+
+		for (int i = 0; i < POPULATION_SIZE; i++) {
+			free(population[i].chromosome);
+		}
 	}
-
-	std::cout << std::endl;
-	PrintPopulation(population);
-	std::cout << "Best member: " << population[0].num_cliques << std::endl;
-	for (int j = 0; j < CHROMOSOME_LENGTH; j++) {
-		std::cout << (char) (population[0].chromosome[j] + 0x30);
-	}
-
-	std::cout << std::endl;
-
-	/* echo seed for posterity */
-	std::cout << "SEED: " << seed << std::endl;
-    /* leave console up until keypress */
-	std::cout << "FINISHED AND WAITING FOR RETURN KEY" << std::endl;
-    std::getchar();
 }
 
 /*
