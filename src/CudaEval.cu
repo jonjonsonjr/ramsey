@@ -12,8 +12,8 @@ __device__ __constant__ char adj[43][43];
 
 __global__ void eval(int *c) 
 {
-    __shared__ short cache[threadsPerBlock];
-    int cacheIndex = threadIdx.x;
+	__shared__ short cache[threadsPerBlock];
+	int cacheIndex = threadIdx.x;
 	int sum = 0; // number of cliques found by this thread
 	int arr[5] = { 0, 0, 0, 0, 0 };
 
@@ -42,27 +42,27 @@ __global__ void eval(int *c)
 			arr[i] = (N - 1) - arr[i];
 		}
             
-		int result = adj[arr[0]][arr[1]] +
-					 adj[arr[0]][arr[2]] +
-					 adj[arr[0]][arr[3]] +
-					 adj[arr[0]][arr[4]] +
-					 adj[arr[1]][arr[2]] +
-					 adj[arr[1]][arr[3]] +
-					 adj[arr[1]][arr[4]] +
-					 adj[arr[2]][arr[3]] +
-					 adj[arr[2]][arr[4]] +
-					 adj[arr[3]][arr[4]];
+		int result = 	adj[arr[0]][arr[1]] +
+				adj[arr[0]][arr[2]] +
+				adj[arr[0]][arr[3]] +
+				adj[arr[0]][arr[4]] +
+				adj[arr[1]][arr[2]] +
+				adj[arr[1]][arr[3]] +
+				adj[arr[1]][arr[4]] +
+				adj[arr[2]][arr[3]] +
+				adj[arr[2]][arr[4]] +
+				adj[arr[3]][arr[4]];
             
 		sum += (result == 0 || result == KC2);
 
 		tid += offset; // move on to next pass
 	}
 
-    cache[cacheIndex] = sum; // populate the cache values
-    __syncthreads(); // synchronize threads in this block
+	cache[cacheIndex] = sum; // populate the cache values
+	__syncthreads(); // synchronize threads in this block
 
-    // threadsPerBlock must be a power of 2 because of the following:
-    int i = blockDim.x / 2;
+	// threadsPerBlock must be a power of 2 because of the following:
+	int i = blockDim.x / 2;
 	while (i != 0) {
 		if (cacheIndex < i) {
 			cache[cacheIndex] += cache[cacheIndex + i];
@@ -72,15 +72,15 @@ __global__ void eval(int *c)
 		i /= 2;
 	}
 
-    if (cacheIndex == 0) {
-        c[blockIdx.x] = cache[0]; //number of cliques found by this block
+	if (cacheIndex == 0) {
+		c[blockIdx.x] = cache[0]; //number of cliques found by this block
 	}
 }
 
 int CudaEval(char *adjacency_matrix)
 {
-	int           c, *partial_c;
-    int           *dev_partial_c;
+	int c, *partial_c;
+	int *dev_partial_c;
 
 	partial_c = (int*) malloc(blocksPerGrid * sizeof(int));
 	cudaMalloc((void**) &dev_partial_c, blocksPerGrid * sizeof(int));
