@@ -42,16 +42,16 @@ __global__ void eval(int *c)
 			arr[i] = (N - 1) - arr[i];
 		}
             
-		int result = 	adj[arr[0]][arr[1]] +
-				adj[arr[0]][arr[2]] +
-				adj[arr[0]][arr[3]] +
-				adj[arr[0]][arr[4]] +
-				adj[arr[1]][arr[2]] +
-				adj[arr[1]][arr[3]] +
-				adj[arr[1]][arr[4]] +
-				adj[arr[2]][arr[3]] +
-				adj[arr[2]][arr[4]] +
-				adj[arr[3]][arr[4]];
+		int result = adj[arr[0]][arr[1]] +
+		             adj[arr[0]][arr[2]] +
+		             adj[arr[0]][arr[3]] +
+		             adj[arr[0]][arr[4]] +
+		             adj[arr[1]][arr[2]] +
+		             adj[arr[1]][arr[3]] +
+		             adj[arr[1]][arr[4]] +
+		             adj[arr[2]][arr[3]] +
+		             adj[arr[2]][arr[4]] +
+		             adj[arr[3]][arr[4]];
             
 		sum += (result == 0 || result == KC2);
 
